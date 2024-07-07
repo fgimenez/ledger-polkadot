@@ -7,7 +7,7 @@ import axios from 'axios';
 import { ExtrinsicPayloadValue } from '@polkadot/types/types/extrinsic';
 import { Command } from 'commander';
 
-const DERIVATION_PATH_PREFIX = "m/44'/354'/0'/0'/";
+const DERIVATION_PATH_PREFIX = "m/44'/354'/0'/";
 const CHAIN_ID = 'dot';
 const METADATA_SERVER_URL = 'https://api.zondax.ch/polkadot';
 const RPC_PROVIDER = 'wss://polkadot-rpc.publicnode.com';
@@ -27,11 +27,12 @@ async function connectToPolkadot() {
     return api;
 }
 
-async function common(accountIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
+async function common(accountType: number, addressIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
     const ledger = await initLedger();
     const api = await connectToPolkadot();
 
-    const derivationPath = `${DERIVATION_PATH_PREFIX}${accountIndex}'`;
+    const derivationPath = `${DERIVATION_PATH_PREFIX}${accountType}'/${addressIndex}'`;
+    console.log("derivation path " + derivationPath)
     const senderAddress = await ledger.getAddress(derivationPath, 0);
     console.log("sender address " + senderAddress.address)
 
@@ -86,37 +87,39 @@ async function common(accountIndex: number, extrinsic: SubmittableExtrinsic<'pro
     });
 }
 
-async function transfer(accountIndex: number, recipient: string, amount: number) {
+async function transfer(accountType: number, addressIndex: number, recipient: string, amount: number) {
     const api = await connectToPolkadot();
     const extrinsic = api.tx.balances.transferKeepAlive(recipient, amount);
 
-    common(accountIndex, extrinsic);
+    common(accountType, addressIndex, extrinsic);
 }
 
-async function bond(accountIndex: number, amount: number) {
+async function bond(accountType: number, addressIndex: number, amount: number) {
     const api = await connectToPolkadot();
     const extrinsic = api.tx.staking.bondExtra(amount);
 
-    common(accountIndex, extrinsic);
+    common(accountType, addressIndex, extrinsic);
 }
 
 program
     .command('transfer')
     .description('Transfer DOT tokens')
-    .requiredOption('-i, --index <number>', 'Account index for the derivation path', parseInt)
+    .option('-t, --account-type <number>', 'Account type for the derivation path', (value) => parseInt(value, 10), 0)
+    .option('-i, --address-index <number>', 'Address index for the derivation path', (value) => parseInt(value, 10), 0)
     .requiredOption('-r, --recipient <address>', 'Recipient address')
     .requiredOption('-a, --amount <number>', 'Amount to transfer', parseInt)
     .action(async (cmd) => {
-        await transfer(cmd.index, cmd.recipient, cmd.amount);
+        await transfer(cmd.accountType, cmd.addressIndex, cmd.recipient, cmd.amount);
     });
 
 program
     .command('bond')
     .description('Bond DOT tokens')
-    .requiredOption('-i, --index <number>', 'Account index for the derivation path', parseInt)
+    .option('-t, --account-type <number>', 'Account type for the derivation path', (value) => parseInt(value, 10), 0)
+    .option('-i, --address-index <number>', 'Account index for the derivation path', (value) => parseInt(value, 10), 0)
     .requiredOption('-a, --amount <number>', 'Amount to bond', parseInt)
     .action(async (cmd) => {
-        await bond(cmd.index, cmd.amount);
+        await bond(cmd.accountType, cmd.addressIndex, cmd.amount);
     });
 
 program.parse(process.argv);
