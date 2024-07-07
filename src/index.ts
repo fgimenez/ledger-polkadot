@@ -1,5 +1,5 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { SubmittableExtrinsics } from '@polkadot/api-types/interfaces';
+import { SubmittableExtrinsic } from '@polkadot/api-base/types';
 import { PolkadotGenericApp } from '@zondax/ledger-substrate';
 import transport from '@ledgerhq/hw-transport-node-hid';
 import { hexToU8a } from '@polkadot/util';
@@ -27,7 +27,7 @@ async function connectToPolkadot() {
     return api;
 }
 
-async function common(accountIndex: number, extrinsic: Extrinsic) {
+async function common(accountIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
     const ledger = await initLedger();
     const api = await connectToPolkadot();
 
