@@ -12,6 +12,7 @@
     "@types/node": "^20.14.10",
     "@zondax/ledger-substrate": "^0.44.2",
     "axios": "^1.7.2",
+    "commander": "^12.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

@@ -1,53 +1,49 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { PolkadotGenericApp } from '@zondax/ledger-substrate';
-import transport from "@ledgerhq/hw-transport-node-hid"
+import transport from '@ledgerhq/hw-transport-node-hid';
 import { hexToU8a } from '@polkadot/util';
-import axios from "axios";
-import { ExtrinsicPayloadValue } from "@polkadot/types/types/extrinsic";
+import axios from 'axios';
+import { ExtrinsicPayloadValue } from '@polkadot/types/types/extrinsic';
+import { Command } from 'commander';
 
-const DERIVATION_PATH = "m/44'/354'/0'/0'/4'";
-const CHAIN_ID = "dot";
-const METADATA_SERVER_URL = "https://api.zondax.ch/polkadot";
-const RPC_PROVIDER = "wss://polkadot-rpc.publicnode.com";
+const DERIVATION_PATH_PREFIX = "m/44'/354'/0'/0'/";
+const CHAIN_ID = 'dot';
+const METADATA_SERVER_URL = 'https://api.zondax.ch/polkadot';
+const RPC_PROVIDER = 'wss://polkadot-rpc.publicnode.com';
 
-// Function to initialize Ledger
+const program = new Command();
+
 async function initLedger() {
-    const t = await transport.create()
+    const t = await transport.create();
     const ledger = new PolkadotGenericApp(t, CHAIN_ID, `${METADATA_SERVER_URL}/transaction/metadata`);
-
     await ledger.getVersion(); // Initialize the Ledger app
-
     return ledger;
 }
 
-// Reference: https://github.com/polkadot-js/api/issues/1421
-
-async function main() {
-    // Connect to the Polkadot network
+async function connectToPolkadot() {
     const wsProvider = new WsProvider(RPC_PROVIDER);
     const api = await ApiPromise.create({ provider: wsProvider });
+    return api;
+}
 
-    // Initialize Ledger
+async function transfer(accountIndex: number, recipient: string, amount: number) {
     const ledger = await initLedger();
+    const api = await connectToPolkadot();
 
-    // Define sender and receiver addresses and the amount to transfer
-    const senderAddress = await ledger.getAddress(DERIVATION_PATH, 0);
-    const receiverAddress = '15yiimjp4dMoR2kDYCqL53R9ugtnpAqfosV9M7nhKK1YTGP9';
-    const transferAmount = 3_720_000_000_000; // 372 DOT
-
+    const derivationPath = `${DERIVATION_PATH_PREFIX}${accountIndex}'`;
+    const senderAddress = await ledger.getAddress(derivationPath, 0);
     console.log("sender address " + senderAddress.address)
+
     const nonceResp = await api.query.system.account(senderAddress.address);
-    const { nonce } = nonceResp.toHuman() as any
+    const { nonce } = nonceResp.toHuman() as any;
     console.log("nonce " + nonce)
 
-    // Create the transfer transaction
-    const transfer = api.tx.balances.transferKeepAlive(receiverAddress, transferAmount);
+    const transfer = api.tx.balances.transferKeepAlive(recipient, amount);
 
-    const resp = await axios.post(`${METADATA_SERVER_URL}/node/metadata/hash`, { id: CHAIN_ID })
+    const resp = await axios.post(`${METADATA_SERVER_URL}/node/metadata/hash`, { id: CHAIN_ID });
 
     console.log("metadata hash " + resp.data.metadataHash)
 
-    // Create the payload for signing
     const payload = api.createType('ExtrinsicPayload', {
         method: transfer.method.toHex(),
         nonce: nonce as unknown as number,
@@ -58,15 +54,13 @@ async function main() {
         runtimeVersion: api.runtimeVersion,
         version: api.extrinsicVersion,
         mode: 1,
-        metadataHash: hexToU8a("01" + resp.data.metadataHash)
+        metadataHash: hexToU8a('01' + resp.data.metadataHash),
     });
 
     console.log("payload to sign[hex] " + Buffer.from(payload.toU8a(true)).toString("hex"))
     console.log("payload to sign[human] " + JSON.stringify(payload.toHuman(true)))
 
-    // Request signature from Ledger
-    // Remove first byte as it indicates the length, and it is not supported by shortener and ledger app
-    const { signature } = await ledger.sign(DERIVATION_PATH, Buffer.from(payload.toU8a(true)));
+    const { signature } = await ledger.sign(derivationPath, Buffer.from(payload.toU8a(true)));
 
     console.log("signature " + signature.toString("hex"))
 
@@ -80,21 +74,41 @@ async function main() {
         tip: 0,
         transactionVersion: api.runtimeVersion.transactionVersion,
         mode: 1,
-        metadataHash: hexToU8a("01" + resp.data.metadataHash)
-    }
+        metadataHash: hexToU8a('01' + resp.data.metadataHash),
+    };
 
-    // Combine the payload and signature to create a signed extrinsic
     const signedExtrinsic = transfer.addSignature(senderAddress.address, signature, payloadValue);
 
     console.log("signedTx to broadcast[hex] " + Buffer.from(signedExtrinsic.toU8a()).toString("hex"))
     console.log("signedTx to broadcast[human] " + JSON.stringify(signedExtrinsic.toHuman(true)))
 
-    // Submit the signed transaction
     await transfer.send((status) => {
         console.log(`Tx status: ${JSON.stringify(status)}`);
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 120000))
 }
 
-main().catch(console.error).finally(() => process.exit());
+async function bond(accountIndex: number, amount: number) {
+    // Bonding logic here
+    console.log(`Bonding with account index ${accountIndex} and amount ${amount}`);
+}
+
+program
+    .command('transfer')
+    .description('Transfer DOT tokens')
+    .requiredOption('-i, --index <number>', 'Account index for the derivation path', parseInt)
+    .requiredOption('-r, --recipient <address>', 'Recipient address')
+    .requiredOption('-a, --amount <number>', 'Amount to transfer', parseInt)
+    .action(async (cmd) => {
+        await transfer(cmd.index, cmd.recipient, cmd.amount);
+    });
+
+program
+    .command('bond')
+    .description('Bond DOT tokens')
+    .requiredOption('-i, --index <number>', 'Account index for the derivation path', parseInt)
+    .requiredOption('-a, --amount <number>', 'Amount to bond', parseInt)
+    .action(async (cmd) => {
+        await bond(cmd.index, cmd.amount);
+    });
+
+program.parse(process.argv);
