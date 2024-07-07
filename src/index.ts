@@ -1,4 +1,5 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
+import { SubmittableExtrinsics } from '@polkadot/api-types/interfaces';
 import { PolkadotGenericApp } from '@zondax/ledger-substrate';
 import transport from '@ledgerhq/hw-transport-node-hid';
 import { hexToU8a } from '@polkadot/util';
@@ -26,7 +27,7 @@ async function connectToPolkadot() {
     return api;
 }
 
-async function transfer(accountIndex: number, recipient: string, amount: number) {
+async function common(accountIndex: number, extrinsic: Extrinsic) {
     const ledger = await initLedger();
     const api = await connectToPolkadot();
 
@@ -38,14 +39,12 @@ async function transfer(accountIndex: number, recipient: string, amount: number)
     const { nonce } = nonceResp.toHuman() as any;
     console.log("nonce " + nonce)
 
-    const transfer = api.tx.balances.transferKeepAlive(recipient, amount);
-
     const resp = await axios.post(`${METADATA_SERVER_URL}/node/metadata/hash`, { id: CHAIN_ID });
 
     console.log("metadata hash " + resp.data.metadataHash)
 
     const payload = api.createType('ExtrinsicPayload', {
-        method: transfer.method.toHex(),
+        method: extrinsic.method.toHex(),
         nonce: nonce as unknown as number,
         genesisHash: api.genesisHash,
         blockHash: api.genesisHash,
@@ -68,7 +67,7 @@ async function transfer(accountIndex: number, recipient: string, amount: number)
         era: payload.era,
         genesisHash: api.genesisHash,
         blockHash: api.genesisHash,
-        method: transfer.method.toHex(),
+        method: extrinsic.method.toHex(),
         nonce: nonce as unknown as number,
         specVersion: api.runtimeVersion.specVersion,
         tip: 0,
@@ -77,19 +76,28 @@ async function transfer(accountIndex: number, recipient: string, amount: number)
         metadataHash: hexToU8a('01' + resp.data.metadataHash),
     };
 
-    const signedExtrinsic = transfer.addSignature(senderAddress.address, signature, payloadValue);
+    const signedExtrinsic = extrinsic.addSignature(senderAddress.address, signature, payloadValue);
 
     console.log("signedTx to broadcast[hex] " + Buffer.from(signedExtrinsic.toU8a()).toString("hex"))
     console.log("signedTx to broadcast[human] " + JSON.stringify(signedExtrinsic.toHuman(true)))
 
-    await transfer.send((status) => {
+    await extrinsic.send((status) => {
         console.log(`Tx status: ${JSON.stringify(status)}`);
     });
 }
 
+async function transfer(accountIndex: number, recipient: string, amount: number) {
+    const api = await connectToPolkadot();
+    const extrinsic = api.tx.balances.transferKeepAlive(recipient, amount);
+
+    common(accountIndex, extrinsic);
+}
+
 async function bond(accountIndex: number, amount: number) {
-    // Bonding logic here
-    console.log(`Bonding with account index ${accountIndex} and amount ${amount}`);
+    const api = await connectToPolkadot();
+    const extrinsic = api.tx.staking.bondExtra(amount);
+
+    common(accountIndex, extrinsic);
 }
 
 program
