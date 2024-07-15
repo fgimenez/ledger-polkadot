@@ -13,6 +13,7 @@ interface NetworkConfig {
     chainId: string;
     metadataServerUrl: string;
     rpcProvider: string;
+    ss58prefix: number;
 }
 
 const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
@@ -20,11 +21,13 @@ const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
         chainId: 'dot',
         metadataServerUrl: 'https://api.zondax.ch/polkadot',
         rpcProvider: 'wss://polkadot-rpc.publicnode.com',
+        ss58prefix: 0,
     },
     kusama: {
         chainId: 'ksm',
-        metadataServerUrl: 'https://api.zondax.ch/kusama',
+        metadataServerUrl: 'https://api.zondax.ch/ksm',
         rpcProvider: 'wss://kusama-rpc.publicnode.com',
+        ss58prefix: 2,
     },
 };
 
@@ -47,11 +50,11 @@ async function connectToNetwork(network: string) {
 
 async function common(network: string, api: ApiPromise, accountType: number, addressIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
     const ledger = await initLedger(network);
-    const { chainId, metadataServerUrl } = NETWORK_CONFIGS[network];
+    const { chainId, metadataServerUrl, ss58prefix } = NETWORK_CONFIGS[network];
 
     const derivationPath = `${DERIVATION_PATH_PREFIX}${accountType}'/${addressIndex}'`;
     console.log("derivation path " + derivationPath);
-    const senderAddress = await ledger.getAddress(derivationPath, 0);
+    const senderAddress = await ledger.getAddress(derivationPath, ss58prefix);
     console.log("sender address " + senderAddress.address);
 
     const nonceResp = await api.query.system.account(senderAddress.address);
