@@ -27,9 +27,8 @@ async function connectToPolkadot() {
     return api;
 }
 
-async function common(accountType: number, addressIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
+async function common(api: ApiPromise, accountType: number, addressIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
     const ledger = await initLedger();
-    const api = await connectToPolkadot();
 
     const derivationPath = `${DERIVATION_PATH_PREFIX}${accountType}'/${addressIndex}'`;
     console.log("derivation path " + derivationPath)
@@ -91,14 +90,14 @@ async function transfer(accountType: number, addressIndex: number, recipient: st
     const api = await connectToPolkadot();
     const extrinsic = api.tx.balances.transferKeepAlive(recipient, amount);
 
-    common(accountType, addressIndex, extrinsic);
+    common(api, accountType, addressIndex, extrinsic);
 }
 
 async function bond(accountType: number, addressIndex: number, amount: number) {
     const api = await connectToPolkadot();
     const extrinsic = api.tx.staking.bondExtra(amount);
 
-    common(accountType, addressIndex, extrinsic);
+    common(api, accountType, addressIndex, extrinsic);
 }
 
 program
