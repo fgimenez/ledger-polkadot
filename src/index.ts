@@ -8,10 +8,10 @@ import { ExtrinsicPayloadValue } from '@polkadot/types/types/extrinsic';
 import { Command } from 'commander';
 
 const DERIVATION_PATH_PREFIX = "m/44'/354'/0'/";
+const METADATA_SERVER_URL = 'https://api.zondax.ch/polkadot';
 
 interface NetworkConfig {
     chainId: string;
-    metadataServerUrl: string;
     rpcProvider: string;
     ss58prefix: number;
 }
@@ -19,13 +19,11 @@ interface NetworkConfig {
 const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     polkadot: {
         chainId: 'dot',
-        metadataServerUrl: 'https://api.zondax.ch/polkadot',
         rpcProvider: 'wss://polkadot-rpc.publicnode.com',
         ss58prefix: 0,
     },
     kusama: {
         chainId: 'ksm',
-        metadataServerUrl: 'https://api.zondax.ch/ksm',
         rpcProvider: 'wss://kusama-rpc.publicnode.com',
         ss58prefix: 2,
     },
@@ -35,8 +33,8 @@ const program = new Command();
 
 async function initLedger(network: string) {
     const t = await transport.create();
-    const { chainId, metadataServerUrl } = NETWORK_CONFIGS[network];
-    const ledger = new PolkadotGenericApp(t, chainId, `${metadataServerUrl}/transaction/metadata`);
+    const { chainId } = NETWORK_CONFIGS[network];
+    const ledger = new PolkadotGenericApp(t, chainId, `${METADATA_SERVER_URL}/transaction/metadata`);
     await ledger.getVersion(); // Initialize the Ledger app
     return ledger;
 }
@@ -50,7 +48,7 @@ async function connectToNetwork(network: string) {
 
 async function common(network: string, api: ApiPromise, accountType: number, addressIndex: number, extrinsic: SubmittableExtrinsic<'promise'>) {
     const ledger = await initLedger(network);
-    const { chainId, metadataServerUrl, ss58prefix } = NETWORK_CONFIGS[network];
+    const { chainId, ss58prefix } = NETWORK_CONFIGS[network];
 
     const derivationPath = `${DERIVATION_PATH_PREFIX}${accountType}'/${addressIndex}'`;
     console.log("derivation path " + derivationPath);
@@ -61,7 +59,7 @@ async function common(network: string, api: ApiPromise, accountType: number, add
     const { nonce } = nonceResp.toHuman() as any;
     console.log("nonce " + nonce);
 
-    const resp = await axios.post(`${metadataServerUrl}/node/metadata/hash`, { id: chainId });
+    const resp = await axios.post(`${METADATA_SERVER_URL}/node/metadata/hash`, { id: chainId });
 
     console.log("metadata hash " + resp.data.metadataHash);
 
